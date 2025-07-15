@@ -84,6 +84,32 @@ class ClientVATManager {
                 this.closeAlertPreviewModal();
             }
         });
+
+        // Add event listener for clients list/report modal
+        document.getElementById('viewClientsListBtn').addEventListener('click', () => {
+            this.openClientsListModal();
+        });
+        document.querySelectorAll('#clientsListModal .close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => {
+                this.closeClientsListModal();
+            });
+        });
+        document.getElementById('clientsListSearch').addEventListener('input', (e) => {
+            this.renderClientsListTable(e.target.value);
+        });
+        document.getElementById('exportClientsBtn').addEventListener('click', () => {
+            this.exportClientsToCSV();
+        });
+        // Print button
+        if (!document.getElementById('printClientsBtn')) {
+            const printBtn = document.createElement('button');
+            printBtn.id = 'printClientsBtn';
+            printBtn.className = 'btn btn-secondary';
+            printBtn.style.marginTop = '10px';
+            printBtn.innerHTML = '<i class="fas fa-print"></i> طباعة';
+            printBtn.onclick = () => this.printClientsList();
+            document.querySelector('.clients-list-table-container').appendChild(printBtn);
+        }
     }
 
     openModal(client = null) {
@@ -153,16 +179,116 @@ class ClientVATManager {
         modal.style.display = 'none';
     }
 
+    openClientsListModal() {
+        this.renderClientsListTable();
+        document.getElementById('clientsListModal').style.display = 'block';
+    }
+    closeClientsListModal() {
+        document.getElementById('clientsListModal').style.display = 'none';
+    }
+    printClientsList() {
+        const tableHtml = document.getElementById('clientsListTable').outerHTML;
+        const win = window.open('', '', 'width=1000,height=700');
+        win.document.write('<html><head><title>قائمة العملاء</title>');
+        win.document.write('<style>table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:8px;text-align:center;}th{background:#eee;}</style>');
+        win.document.write('</head><body>');
+        win.document.write('<h2>قائمة العملاء</h2>');
+        win.document.write(tableHtml);
+        win.document.write('</body></html>');
+        win.document.close();
+        win.print();
+    }
+    exportClientsToCSV() {
+        const rows = [
+            ['اسم الشركة', 'الرقم الضريبي', 'رقم الرخصة', 'المسؤول', 'تاريخ الاستحقاق', 'الحالة', 'ضريبة القيمة المضافة']
+        ];
+        this.clients.forEach(client => {
+            rows.push([
+                client.companyName,
+                client.vatNumber,
+                client.licenseNumber,
+                client.contactPerson,
+                this.formatDate(client.nextDueDate),
+                client.vatStatus ? this.getVatStatusText(client.vatStatus) : '',
+                client.vatPeriod ? this.getVatPeriodText(client.vatPeriod) : ''
+            ]);
+        });
+        let csvContent = rows.map(e => e.map(x => '"' + (x || '') + '"').join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'clients-list.csv';
+        link.click();
+    }
+    renderClientsListTable(search = '') {
+        const tbody = document.querySelector('#clientsListTable tbody');
+        tbody.innerHTML = '';
+        let filtered = this.clients;
+        if (search) {
+            const s = search.toLowerCase();
+            filtered = filtered.filter(c =>
+                (c.companyName || '').toLowerCase().includes(s) ||
+                (c.vatNumber || '').toLowerCase().includes(s) ||
+                (c.licenseNumber || '').toLowerCase().includes(s) ||
+                (c.contactPerson || '').toLowerCase().includes(s)
+            );
+        }
+        filtered.forEach(client => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${client.companyName || ''}</td>
+                <td>${client.vatNumber || ''}</td>
+                <td>${client.licenseNumber || ''}</td>
+                <td>${client.contactPerson || ''}</td>
+                <td>${this.formatDate(client.nextDueDate)}</td>
+                <td>
+                    <select class="vat-status-select" data-id="${client.id}">
+                        <option value="not_submitted" ${client.vatStatus === 'not_submitted' ? 'selected' : ''}>لم يتم التقديم</option>
+                        <option value="submitted" ${client.vatStatus === 'submitted' ? 'selected' : ''}>تم التقديم</option>
+                        <option value="paid" ${client.vatStatus === 'paid' ? 'selected' : ''}>تم الدفع</option>
+                    </select>
+                </td>
+                <td>${this.getVatPeriodText(client.vatPeriod)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+        // Add event listeners for VAT status change
+        document.querySelectorAll('.vat-status-select').forEach(sel => {
+            sel.addEventListener('change', (e) => {
+                const id = e.target.getAttribute('data-id');
+                const client = this.clients.find(c => c.id === id);
+                if (client) {
+                    client.vatStatus = e.target.value;
+                    this.saveToLocalStorage();
+                    this.renderClients();
+                }
+            });
+        });
+    }
+    getVatStatusText(status) {
+        if (status === 'not_submitted') return 'لم يتم التقديم';
+        if (status === 'submitted') return 'تم التقديم';
+        if (status === 'paid') return 'تم الدفع';
+        return '';
+    }
+    getVatPeriodText(period) {
+        if (period === 'monthly') return 'شهري';
+        if (period === 'quarterly') return 'ربع سنوي';
+        if (period === 'annually') return 'سنوي';
+        return '';
+    }
+
     populateForm(client) {
         document.getElementById('companyName').value = client.companyName;
         document.getElementById('vatNumber').value = client.vatNumber || '';
+        document.getElementById('licenseNumber').value = client.licenseNumber || '';
         document.getElementById('contactPerson').value = client.contactPerson || '';
         document.getElementById('email').value = client.email || '';
         document.getElementById('phone').value = client.phone || '';
-        document.getElementById('address').value = client.address || '';
         document.getElementById('vatPeriod').value = client.vatPeriod || 'quarterly';
         document.getElementById('nextDueDate').value = client.nextDueDate;
         document.getElementById('notes').value = client.notes || '';
+        document.getElementById('vatStatus').value = client.vatStatus || 'not_submitted';
         
         // Alert settings
         document.getElementById('alertEmail').value = client.alertEmail || '';
@@ -176,13 +302,14 @@ class ClientVATManager {
         const formData = {
             companyName: document.getElementById('companyName').value.trim(),
             vatNumber: document.getElementById('vatNumber').value.trim(),
+            licenseNumber: document.getElementById('licenseNumber').value.trim(),
             contactPerson: document.getElementById('contactPerson').value.trim(),
             email: document.getElementById('email').value.trim(),
             phone: document.getElementById('phone').value.trim(),
-            address: document.getElementById('address').value.trim(),
             vatPeriod: document.getElementById('vatPeriod').value,
             nextDueDate: document.getElementById('nextDueDate').value,
             notes: document.getElementById('notes').value.trim(),
+            vatStatus: document.getElementById('vatStatus').value,
             // Alert settings
             alertEmail: document.getElementById('alertEmail').value.trim(),
             alertWhatsApp: document.getElementById('alertWhatsApp').value.trim(),
@@ -192,7 +319,7 @@ class ClientVATManager {
         };
 
         if (!formData.companyName || !formData.nextDueDate) {
-            alert('Please fill in all required fields (Company Name and Next Due Date)');
+            alert('يرجى تعبئة جميع الحقول المطلوبة (اسم الشركة وتاريخ الاستحقاق)');
             return;
         }
 
@@ -421,8 +548,8 @@ Need help? Contact us! 📞`;
             clientsGrid.innerHTML = `
                 <div class="no-clients">
                     <i class="fas fa-inbox" style="font-size: 3rem; color: #6c757d; margin-bottom: 20px;"></i>
-                    <h3>No clients found</h3>
-                    <p>${this.searchTerm ? 'Try adjusting your search terms.' : 'Add your first client to get started!'}</p>
+                    <h3>لا يوجد عملاء</h3>
+                    <p>${this.searchTerm ? 'حاول تعديل كلمات البحث.' : 'أضف أول عميل للبدء!'}</p>
                 </div>
             `;
             return;
@@ -439,18 +566,19 @@ Need help? Contact us! 📞`;
                     <div class="client-header">
                         <div>
                             <div class="client-name">${client.companyName}</div>
-                            ${client.vatNumber ? `<div class="client-vat">VAT: ${client.vatNumber}</div>` : ''}
+                            ${client.vatNumber ? `<div class="client-vat">الرقم الضريبي: ${client.vatNumber}</div>` : ''}
+                            ${client.licenseNumber ? `<div class="client-vat">الرخصة: ${client.licenseNumber}</div>` : ''}
                         </div>
                         <div class="client-actions">
                             ${needsAlert ? `
-                                <button class="action-btn alert-btn" onclick="app.openAlertPreviewModal('${client.id}')" title="Send Alert">
+                                <button class="action-btn alert-btn" onclick="app.openAlertPreviewModal('${client.id}')" title="إرسال تنبيه">
                                     <i class="fas fa-bell"></i>
                                 </button>
                             ` : ''}
-                            <button class="action-btn edit-btn" onclick="app.editClient('${client.id}')" title="Edit">
+                            <button class="action-btn edit-btn" onclick="app.editClient('${client.id}')" title="تعديل">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button class="action-btn delete-btn" onclick="app.openDeleteModal('${client.id}')" title="Delete">
+                            <button class="action-btn delete-btn" onclick="app.openDeleteModal('${client.id}')" title="حذف">
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
@@ -475,40 +603,38 @@ Need help? Contact us! 📞`;
                                 <span>${client.phone}</span>
                             </div>
                         ` : ''}
-                        ${client.address ? `
-                            <div class="info-row">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span>${client.address}</span>
-                            </div>
-                        ` : ''}
                         <div class="info-row">
                             <i class="fas fa-calendar"></i>
-                            <span>${client.vatPeriod.charAt(0).toUpperCase() + client.vatPeriod.slice(1)} VAT Period</span>
+                            <span>${this.getVatPeriodText(client.vatPeriod)} - ${this.formatDate(client.nextDueDate)}</span>
+                        </div>
+                        <div class="info-row">
+                            <i class="fas fa-check-circle"></i>
+                            <span>حالة الضريبة: ${this.getVatStatusText(client.vatStatus)}</span>
                         </div>
                         ${client.enableAlerts ? `
                             <div class="info-row">
                                 <i class="fas fa-bell"></i>
-                                <span>Alerts: ${client.alertType} (${client.alertDays} days before)</span>
+                                <span>تنبيه: ${client.alertType} (${client.alertDays} يوم قبل)</span>
                             </div>
                         ` : ''}
                     </div>
                     
                     <div class="client-due-date ${status.status === 'overdue' ? 'urgent' : ''}">
                         <div class="due-date-label">
-                            ${status.status === 'overdue' ? 'OVERDUE' : 'Next Due Date'}
+                            ${status.status === 'overdue' ? 'متأخر' : 'تاريخ الاستحقاق القادم'}
                         </div>
                         <div class="due-date-value">
                             ${this.formatDate(client.nextDueDate)}
-                            ${status.status === 'overdue' ? ` (${status.days} days overdue)` : 
-                              status.status === 'urgent' ? ` (${status.days} days)` : 
-                              status.status === 'upcoming' ? ` (${status.days} days)` : ''}
+                            ${status.status === 'overdue' ? ` (${status.days} يوم متأخر)` : 
+                              status.status === 'urgent' ? ` (${status.days} يوم)` : 
+                              status.status === 'upcoming' ? ` (${status.days} يوم)` : ''}
                         </div>
                     </div>
                     
                     ${alertStatus !== 'pending' ? `
                         <div class="alert-status ${alertStatus}">
                             <i class="fas fa-${alertStatus === 'email-sent' ? 'envelope' : 'whatsapp'}"></i>
-                            <span>${alertStatus === 'email-sent' ? 'Email sent' : 'WhatsApp sent'}</span>
+                            <span>${alertStatus === 'email-sent' ? 'تم إرسال بريد إلكتروني' : 'تم إرسال واتساب'}</span>
                         </div>
                     ` : ''}
                 </div>
@@ -572,11 +698,13 @@ if (app.clients.length === 0) {
             id: '1',
             companyName: 'Tech Solutions Ltd',
             vatNumber: 'GB123456789',
+            licenseNumber: 'LIC123456',
             contactPerson: 'John Smith',
             email: 'john@techsolutions.com',
             phone: '+44 20 1234 5678',
             address: '123 Business Street, London, UK',
             vatPeriod: 'quarterly',
+            vatStatus: 'not_submitted',
             nextDueDate: '2024-02-15',
             notes: 'Software development company',
             alertEmail: 'john@techsolutions.com',
@@ -590,11 +718,13 @@ if (app.clients.length === 0) {
             id: '2',
             companyName: 'Green Energy Co',
             vatNumber: 'GB987654321',
+            licenseNumber: 'LIC789012',
             contactPerson: 'Sarah Johnson',
             email: 'sarah@greenenergy.co.uk',
             phone: '+44 20 9876 5432',
             address: '456 Renewable Road, Manchester, UK',
             vatPeriod: 'monthly',
+            vatStatus: 'submitted',
             nextDueDate: '2024-01-31',
             notes: 'Renewable energy provider',
             alertEmail: 'sarah@greenenergy.co.uk',
@@ -608,11 +738,13 @@ if (app.clients.length === 0) {
             id: '3',
             companyName: 'Global Trading Ltd',
             vatNumber: 'GB555666777',
+            licenseNumber: 'LIC112233',
             contactPerson: 'Michael Brown',
             email: 'michael@globaltrading.com',
             phone: '+44 20 5555 6666',
             address: '789 Trade Avenue, Birmingham, UK',
             vatPeriod: 'quarterly',
+            vatStatus: 'paid',
             nextDueDate: '2024-03-31',
             notes: 'Import/export business',
             alertEmail: 'michael@globaltrading.com',

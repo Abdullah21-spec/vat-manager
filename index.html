@@ -17,6 +17,9 @@
                 <a href="deploy.html" class="btn btn-secondary" title="نشر على الويب">
                     <i class="fas fa-cloud-upload-alt"></i> <span id="deployBtnText">نشر</span>
                 </a>
+                <button id="viewClientsListBtn" class="btn btn-success">
+                    <i class="fas fa-list"></i> <span id="viewClientsListBtnText">قائمة العملاء</span>
+                </button>
                 <button id="addClientBtn" class="btn btn-primary">
                     <i class="fas fa-plus"></i> <span id="addClientBtnText">إضافة عميل جديد</span>
                 </button>
@@ -102,18 +105,32 @@
                         <input type="text" id="vatNumber">
                     </div>
                     <div class="form-group">
-                        <label for="contactPerson">اسم المسؤول</label>
-                        <input type="text" id="contactPerson">
+                        <label for="licenseNumber">رقم الرخصة التجارية</label>
+                        <input type="text" id="licenseNumber">
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="contactPerson">اسم المسؤول</label>
+                        <input type="text" id="contactPerson">
+                    </div>
+                    <div class="form-group">
                         <label for="email">البريد الإلكتروني</label>
                         <input type="email" id="email">
                     </div>
+                </div>
+                <div class="form-row">
                     <div class="form-group">
                         <label for="phone">رقم الجوال</label>
                         <input type="tel" id="phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="vatStatus">حالة ضريبة القيمة المضافة</label>
+                        <select id="vatStatus">
+                            <option value="not_submitted">لم يتم التقديم</option>
+                            <option value="submitted">تم التقديم</option>
+                            <option value="paid">تم الدفع</option>
+                        </select>
                     </div>
                 </div>
                 <div class="form-group">
@@ -233,6 +250,38 @@
                 <button type="button" class="btn btn-success" id="sendWhatsAppBtn">
                     <i class="fab fa-whatsapp"></i> إرسال واتساب
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clients List/Report Modal -->
+    <div id="clientsListModal" class="modal">
+        <div class="modal-content" style="max-width: 95vw; width: 900px;">
+            <div class="modal-header">
+                <h2>قائمة العملاء</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="clients-list-table-container">
+                    <input type="text" id="clientsListSearch" placeholder="بحث..." style="margin-bottom: 10px; width: 100%; padding: 8px;">
+                    <table id="clientsListTable" class="clients-list-table">
+                        <thead>
+                            <tr>
+                                <th>اسم الشركة</th>
+                                <th>الرقم الضريبي</th>
+                                <th>رقم الرخصة</th>
+                                <th>المسؤول</th>
+                                <th>تاريخ الاستحقاق</th>
+                                <th>الحالة</th>
+                                <th>ضريبة القيمة المضافة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- سيتم ملء الصفوف ديناميكياً -->
+                        </tbody>
+                    </table>
+                    <button id="exportClientsBtn" class="btn btn-secondary" style="margin-top: 10px;"><i class="fas fa-file-export"></i> تصدير إلى Excel</button>
+                </div>
             </div>
         </div>
     </div>
